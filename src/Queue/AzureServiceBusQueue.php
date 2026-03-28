@@ -52,7 +52,7 @@ class AzureServiceBusQueue extends Queue implements QueueContract
             $this->createPayload($job, $this->getQueue($queue), $data),
             $queue,
             $delay,
-            fn ($payload, $queue) => $this->pushDelayed($delay, $payload, $queue),
+            fn ($payload, $queue) => $this->pushDelayed($delay, $payload, $this->getQueue($queue)),
         );
     }
 
