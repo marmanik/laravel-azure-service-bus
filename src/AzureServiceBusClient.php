@@ -135,6 +135,34 @@ class AzureServiceBusClient
         }
     }
 
+    /**
+     * Move a locked message to the Dead Letter Queue (DLQ).
+     *
+     * Sends a DELETE request with DeadLetterReason / DeadLetterErrorDescription
+     * headers which instructs Azure Service Bus to route the message to the
+     * sub-queue  {queue}/$DeadLetterQueue  instead of discarding it.
+     */
+    public function deadLetterMessage(
+        string $queue,
+        string $messageId,
+        string $lockToken,
+        string $reason = 'MaxAttemptsExceeded',
+        string $description = '',
+    ): void {
+        $url = "{$this->baseUrl}/{$queue}/messages/{$messageId}/{$lockToken}";
+
+        $response = $this->httpClient()
+            ->withHeaders([
+                'DeadLetterReason'            => $reason,
+                'DeadLetterErrorDescription'  => $description ?: $reason,
+            ])
+            ->delete($url);
+
+        if (! $response->successful()) {
+            throw AzureServiceBusException::deadLetterFailed($queue, $messageId, $lockToken);
+        }
+    }
+
     public function abandonMessage(string $queue, string $messageId, string $lockToken): void
     {
         $url = "{$this->baseUrl}/{$queue}/messages/{$messageId}/{$lockToken}";

@@ -21,6 +21,7 @@ class AzureServiceBusJob extends Job implements JobContract
         ReceivedMessage $receivedMessage,
         string $connectionName,
         string $queue,
+        private readonly bool $useDeadLetterOnFailure = false,
     ) {
         $this->container = $container;
         $this->client = $client;
@@ -93,5 +94,47 @@ class AzureServiceBusJob extends Job implements JobContract
         $lockToken = $this->receivedMessage->getLockToken();
 
         $this->client->abandonMessage($this->queue, $messageId, $lockToken);
+    }
+
+    /**
+     * Mark the job as failed and either move it to the Dead Letter Queue or
+     * complete (delete) it from Azure Service Bus.
+     *
+     * The base Job::fail() only sets internal flags and fires the JobFailed
+     * event — it does not call delete(). Without this override a permanently
+     * failed message stays locked on Azure Service Bus, re-appears once the
+     * lock expires, and gets processed again indefinitely.
+     *
+     * When `use_dead_letter_on_failure` is enabled the message is moved to
+     * the {queue}/$DeadLetterQueue sub-queue on Azure so it can be inspected
+     * and replayed via the Azure Portal or Service Bus Explorer.
+     * Otherwise the message is completed (deleted) and Laravel stores the
+     * failure in the `failed_jobs` database table.
+     */
+    public function fail($e = null): void
+    {
+        parent::fail($e);
+
+        if (! $this->deleted) {
+            $messageId = $this->receivedMessage->getMessageId() ?? '';
+            $lockToken = $this->receivedMessage->getLockToken();
+
+            if ($this->useDeadLetterOnFailure) {
+                $reason      = $e !== null ? get_class($e) : 'JobFailed';
+                $description = $e !== null ? $e->getMessage() : 'Job permanently failed';
+
+                $this->client->deadLetterMessage(
+                    $this->queue,
+                    $messageId,
+                    $lockToken,
+                    $reason,
+                    $description,
+                );
+            } else {
+                $this->client->completeMessage($this->queue, $messageId, $lockToken);
+            }
+
+            $this->deleted = true;
+        }
     }
 }

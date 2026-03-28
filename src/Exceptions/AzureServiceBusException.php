@@ -32,4 +32,9 @@ class AzureServiceBusException extends Exception
     {
         return new self("Missing Azure Service Bus configuration: '{$key}'");
     }
+
+    public static function deadLetterFailed(string $queue, string $messageId, string $lockToken): self
+    {
+        return new self("Failed to dead-letter message '{$messageId}' with lock '{$lockToken}' from '{$queue}'");
+    }
 }

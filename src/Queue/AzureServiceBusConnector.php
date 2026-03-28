@@ -30,8 +30,9 @@ class AzureServiceBusConnector implements ConnectorInterface
             $client = AzureServiceBusClient::fromConfig();
         }
 
-        $defaultQueue = $config['queue'] ?? config('azure-service-bus.default_queue', 'default');
+        $defaultQueue          = $config['queue'] ?? config('azure-service-bus.default_queue', 'default');
+        $useDeadLetterOnFailure = (bool) ($config['use_dead_letter_on_failure'] ?? config('azure-service-bus.use_dead_letter_on_failure', false));
 
-        return new AzureServiceBusQueue($client, $defaultQueue);
+        return new AzureServiceBusQueue($client, $defaultQueue, $useDeadLetterOnFailure);
     }
 }

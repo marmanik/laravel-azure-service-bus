@@ -14,6 +14,7 @@ class AzureServiceBusQueue extends Queue implements QueueContract
     public function __construct(
         private readonly AzureServiceBusClient $client,
         private readonly string $defaultQueue = 'default',
+        private readonly bool $useDeadLetterOnFailure = false,
     ) {}
 
     public function size($queue = null): int
@@ -71,6 +72,7 @@ class AzureServiceBusQueue extends Queue implements QueueContract
             receivedMessage: $received,
             connectionName: $this->connectionName,
             queue: $queueName,
+            useDeadLetterOnFailure: $this->useDeadLetterOnFailure,
         );
     }
 
