@@ -1,8 +1,8 @@
 # Laravel Azure Service Bus
 
-[![run-tests](https://github.com/nmarmaridis/laravel-azure-service-bus/actions/workflows/run-tests.yml/badge.svg)](https://github.com/nmarmaridis/laravel-azure-service-bus/actions/workflows/run-tests.yml)
-[![Latest Version on Packagist](https://img.shields.io/packagist/v/nmarmaridis/laravel-azure-service-bus.svg)](https://packagist.org/packages/nmarmaridis/laravel-azure-service-bus)
-[![License](https://img.shields.io/packagist/l/nmarmaridis/laravel-azure-service-bus.svg)](LICENSE.md)
+[![run-tests](https://github.com/marmanik/laravel-azure-service-bus/actions/workflows/run-tests.yml/badge.svg)](https://github.com/marmanik/laravel-azure-service-bus/actions/workflows/run-tests.yml)
+[![Latest Version on Packagist](https://img.shields.io/packagist/v/MarmaNik/laravel-azure-service-bus.svg)](https://packagist.org/packages/MarmaNik/laravel-azure-service-bus)
+[![License](https://img.shields.io/packagist/l/MarmaNik/laravel-azure-service-bus.svg)](LICENSE.md)
 
 A Laravel package to publish and consume messages from Azure Service Bus queues and topics via the REST API.
 
@@ -268,11 +268,11 @@ Contributions are welcome. Please open an issue first to discuss what you would 
 
 ## Security
 
-If you discover any security related issues, please email nmarmaridis@users.noreply.github.com instead of using the issue tracker.
+If you discover any security related issues, please email marmaridisn@gmail.com instead of using the issue tracker.
 
 ## Credits
 
-- [Nikolaos Marmaridis](https://github.com/nmarmaridis)
+- [Nikolaos Marmaridis](https://github.com/marmanik)
 - [All Contributors](../../contributors)
 
 ## License
