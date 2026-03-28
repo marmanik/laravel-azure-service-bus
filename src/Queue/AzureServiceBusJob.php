@@ -15,6 +15,11 @@ class AzureServiceBusJob extends Job implements JobContract
     private readonly AzureServiceBusClient $client;
     private readonly ReceivedMessage $receivedMessage;
 
+    /** Set to true inside fail() so delete() knows to dead-letter instead of complete. */
+    private bool $isFailing = false;
+    private string $failReason = 'JobFailed';
+    private string $failDescription = 'Job permanently failed';
+
     public function __construct(
         Container $container,
         AzureServiceBusClient $client,
@@ -78,12 +83,26 @@ class AzureServiceBusJob extends Job implements JobContract
 
     public function delete(): void
     {
+        if ($this->deleted) {
+            return;
+        }
+
         parent::delete();
 
         $messageId = $this->receivedMessage->getMessageId() ?? '';
         $lockToken = $this->receivedMessage->getLockToken();
 
-        $this->client->completeMessage($this->queue, $messageId, $lockToken);
+        if ($this->isFailing && $this->useDeadLetterOnFailure) {
+            $this->client->deadLetterMessage(
+                $this->queue,
+                $messageId,
+                $lockToken,
+                $this->failReason,
+                $this->failDescription,
+            );
+        } else {
+            $this->client->completeMessage($this->queue, $messageId, $lockToken);
+        }
     }
 
     public function release($delay = 0): void
@@ -100,41 +119,23 @@ class AzureServiceBusJob extends Job implements JobContract
      * Mark the job as failed and either move it to the Dead Letter Queue or
      * complete (delete) it from Azure Service Bus.
      *
-     * The base Job::fail() only sets internal flags and fires the JobFailed
-     * event — it does not call delete(). Without this override a permanently
-     * failed message stays locked on Azure Service Bus, re-appears once the
-     * lock expires, and gets processed again indefinitely.
+     * Laravel's base Job::fail() always calls $this->delete() internally in
+     * its finally block — so we must signal the desired disposition BEFORE
+     * calling parent::fail(), not after.  We set $isFailing + capture the
+     * exception details, then let delete() route to deadLetterMessage() or
+     * completeMessage() accordingly.
      *
-     * When `use_dead_letter_on_failure` is enabled the message is moved to
-     * the {queue}/$DeadLetterQueue sub-queue on Azure so it can be inspected
-     * and replayed via the Azure Portal or Service Bus Explorer.
-     * Otherwise the message is completed (deleted) and Laravel stores the
-     * failure in the `failed_jobs` database table.
+     * Call chain:
+     *   fail($e)
+     *     → parent::fail($e)
+     *         → $this->delete()   ← dispatches to Azure (DLQ or complete)
      */
     public function fail($e = null): void
     {
+        $this->isFailing       = true;
+        $this->failReason      = $e !== null ? get_class($e) : 'JobFailed';
+        $this->failDescription = $e !== null ? $e->getMessage() : 'Job permanently failed';
+
         parent::fail($e);
-
-        if (! $this->deleted) {
-            $messageId = $this->receivedMessage->getMessageId() ?? '';
-            $lockToken = $this->receivedMessage->getLockToken();
-
-            if ($this->useDeadLetterOnFailure) {
-                $reason      = $e !== null ? get_class($e) : 'JobFailed';
-                $description = $e !== null ? $e->getMessage() : 'Job permanently failed';
-
-                $this->client->deadLetterMessage(
-                    $this->queue,
-                    $messageId,
-                    $lockToken,
-                    $reason,
-                    $description,
-                );
-            } else {
-                $this->client->completeMessage($this->queue, $messageId, $lockToken);
-            }
-
-            $this->deleted = true;
-        }
     }
 }
