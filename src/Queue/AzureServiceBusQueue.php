@@ -18,7 +18,7 @@ class AzureServiceBusQueue extends Queue implements QueueContract
 
     public function size($queue = null): int
     {
-        return 0;
+        return $this->client->getMessageCount($this->getQueue($queue));
     }
 
     public function push($job, $data = '', $queue = null): mixed

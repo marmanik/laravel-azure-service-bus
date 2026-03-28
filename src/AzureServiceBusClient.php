@@ -81,6 +81,47 @@ class AzureServiceBusClient
         );
     }
 
+    /**
+     * Return the number of active messages waiting in the queue.
+     *
+     * Calls the Azure Service Bus management REST endpoint:
+     *   GET https://{namespace}.servicebus.windows.net/{queue}
+     *
+     * The response is an Atom XML document whose <QueueDescription> element
+     * contains <MessageCountDetails> with an <d2p1:ActiveMessageCount> child
+     * that reflects messages available for immediate delivery (excludes
+     * scheduled, deferred, and dead-lettered messages).
+     */
+    public function getMessageCount(string $queue): int
+    {
+        $url      = "{$this->baseUrl}/{$queue}";
+        $response = $this->httpClient()->get($url);
+
+        if (! $response->successful()) {
+            return 0;
+        }
+
+        $xml = @simplexml_load_string($response->body());
+
+        if ($xml === false) {
+            return 0;
+        }
+
+        $xml->registerXPathNamespace('d2p1', 'http://schemas.microsoft.com/netservices/2010/10/servicebus/connect');
+
+        // ActiveMessageCount — messages ready for immediate delivery
+        $nodes = $xml->xpath('//d2p1:ActiveMessageCount');
+
+        if (! empty($nodes)) {
+            return (int) $nodes[0];
+        }
+
+        // Fallback: total MessageCount from the root QueueDescription
+        $nodes = $xml->xpath('//d2p1:MessageCount');
+
+        return ! empty($nodes) ? (int) $nodes[0] : 0;
+    }
+
     public function sendToQueue(string $queue, ServiceBusMessage $message): void
     {
         $url = "{$this->baseUrl}/{$queue}/messages";
