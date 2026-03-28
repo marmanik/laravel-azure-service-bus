@@ -48,9 +48,6 @@ AZURE_SERVICE_BUS_SAS_TTL=3600
 AZURE_SERVICE_BUS_TIMEOUT=30
 AZURE_SERVICE_BUS_RETRIES=3
 AZURE_SERVICE_BUS_RETRY_DELAY=1000
-
-# Dead Letter Queue — move failed jobs to DLQ instead of completing them
-AZURE_SERVICE_BUS_USE_DLQ=false
 ```
 
 The full `config/azure-service-bus.php`:
@@ -66,7 +63,6 @@ return [
     'timeout'           => env('AZURE_SERVICE_BUS_TIMEOUT', 30),
     'retries'           => env('AZURE_SERVICE_BUS_RETRIES', 3),
     'retry_delay_ms'    => env('AZURE_SERVICE_BUS_RETRY_DELAY', 1000),
-    'use_dead_letter_on_failure' => env('AZURE_SERVICE_BUS_USE_DLQ', false),
 ];
 ```
 
@@ -143,20 +139,10 @@ if ($received !== null) {
             $received->getLockToken()
         );
     } catch (\Throwable $e) {
-        // Abandon (retry later)
         AzureServiceBus::abandonMessage(
             'orders',
             $received->getMessageId(),
             $received->getLockToken()
-        );
-
-        // Or move to dead-letter immediately
-        AzureServiceBus::deadLetterMessage(
-            'orders',
-            $received->getMessageId(),
-            $received->getLockToken(),
-            reason: 'ProcessingFailed',
-            description: $e->getMessage(),
         );
     }
 }
@@ -217,11 +203,10 @@ In `config/queue.php`, add a connection:
         'sas_key_name' => env('AZURE_SERVICE_BUS_SAS_KEY_NAME', 'RootManageSharedAccessKey'),
         'sas_key'      => env('AZURE_SERVICE_BUS_SAS_KEY'),
         // Optional
-        'sas_token_ttl'           => 3600,
-        'timeout'                 => 30,
-        'retries'                 => 3,
-        'retry_delay_ms'          => 1000,
-        'use_dead_letter_on_failure' => env('AZURE_SERVICE_BUS_USE_DLQ', false),
+        'sas_token_ttl'  => 3600,
+        'timeout'        => 30,
+        'retries'        => 3,
+        'retry_delay_ms' => 1000,
     ],
 ],
 ```
@@ -253,19 +238,13 @@ php artisan queue:work azure --queue=orders
 
 Jobs implement the full Laravel job lifecycle including automatic retries, `delete()` on success, and `release()` (abandon) on failure.
 
----
-
-## Job Failure & Dead Letter Queue
-
-### Default behaviour — Laravel `failed_jobs`
-
-When `use_dead_letter_on_failure` is `false` (default):
+## Job Failure
 
 | Event | Azure Service Bus | Laravel |
 |---|---|---|
-| Job throws, retries remain | `abandonMessage()` — message re-queued, `DeliveryCount` incremented | `JobRetrying` event fired |
-| Job throws, max attempts hit | `completeMessage()` — message deleted from queue | `JobFailed` event, row written to `failed_jobs` |
-| Job succeeds | `completeMessage()` — message deleted from queue | `JobProcessed` event fired |
+| Job throws, retries remain | `abandonMessage()` — message re-queued | `JobRetrying` event fired |
+| Job throws, max attempts hit | `completeMessage()` — message deleted | `JobFailed` event, row written to `failed_jobs` |
+| Job succeeds | `completeMessage()` — message deleted | `JobProcessed` event fired |
 
 Manage failed jobs via Artisan:
 
@@ -274,60 +253,6 @@ php artisan queue:failed
 php artisan queue:retry {id}
 php artisan queue:retry all
 php artisan queue:flush
-```
-
-### Dead Letter Queue (DLQ)
-
-When `use_dead_letter_on_failure` is `true`:
-
-```env
-AZURE_SERVICE_BUS_USE_DLQ=true
-```
-
-| Event | Azure Service Bus | Laravel |
-|---|---|---|
-| Job throws, retries remain | `abandonMessage()` — message re-queued | `JobRetrying` event fired |
-| Job throws, max attempts hit | `deadLetterMessage()` — message moved to `{queue}/$DeadLetterQueue` | `JobFailed` event fired |
-| Job succeeds | `completeMessage()` — message deleted | `JobProcessed` event fired |
-
-Dead-lettered messages carry:
-- **`DeadLetterReason`** — the exception class (e.g. `RuntimeException`)
-- **`DeadLetterErrorDescription`** — the exception message
-
-They are visible in the **Azure Portal → Service Bus → Queue → Dead-letter** tab and in **Service Bus Explorer**.
-
-#### Reading the DLQ directly
-
-```php
-use Marmanik\AzureServiceBus\Facades\AzureServiceBus;
-
-$message = AzureServiceBus::receiveAndDelete('orders/$DeadLetterQueue');
-
-if ($message) {
-    $body = $message->getDecodedBody();
-    // inspect, log, or re-publish...
-}
-```
-
-#### Replaying a dead-lettered message
-
-```php
-use Marmanik\AzureServiceBus\Facades\AzureServiceBus;
-use Marmanik\AzureServiceBus\ServiceBusMessage;
-
-$dlq = AzureServiceBus::peekLock('orders/$DeadLetterQueue');
-
-if ($dlq) {
-    // Re-publish the original body back to the main queue
-    AzureServiceBus::sendToQueue('orders', ServiceBusMessage::create($dlq->getBody()));
-
-    // Acknowledge the DLQ message
-    AzureServiceBus::completeMessage(
-        'orders/$DeadLetterQueue',
-        $dlq->getMessageId(),
-        $dlq->getLockToken(),
-    );
-}
 ```
 
 ## Testing
