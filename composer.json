@@ -1,0 +1,62 @@
+{
+    "name": "marmanik/laravel-azure-service-bus",
+    "description": "A Laravel package to publish and consume messages from Azure Service Bus queues and topics via the REST API",
+    "keywords": ["laravel", "azure", "service-bus", "queue"],
+    "homepage": "https://github.com/nmarmaridis/laravel-azure-service-bus",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Nikolaos Marmaridis",
+            "email": "marmaridisn@gmail.com",
+            "role": "Developer"
+        }
+    ],
+    "require": {
+        "php": "^8.2",
+        "illuminate/contracts": "^11.0||^12.0",
+        "illuminate/http": "^11.0||^12.0",
+        "illuminate/queue": "^11.0||^12.0",
+        "illuminate/support": "^11.0||^12.0"
+    },
+    "require-dev": {
+        "laravel/pint": "^1.14",
+        "nunomaduro/collision": "^8.1",
+        "orchestra/testbench": "^9.0||^10.0",
+        "pestphp/pest": "^3.0",
+        "pestphp/pest-plugin-arch": "^3.0",
+        "pestphp/pest-plugin-laravel": "^3.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Marmanik\\AzureServiceBus\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Marmanik\\AzureServiceBus\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "vendor/bin/pest",
+        "test-coverage": "vendor/bin/pest --coverage",
+        "format": "vendor/bin/pint"
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Marmanik\\AzureServiceBus\\AzureServiceBusServiceProvider"
+            ],
+            "aliases": {
+                "AzureServiceBus": "Marmanik\\AzureServiceBus\\Facades\\AzureServiceBus"
+            }
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}
