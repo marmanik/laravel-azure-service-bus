@@ -21,6 +21,28 @@ class AzureServiceBusQueue extends Queue implements QueueContract
         return $this->client->getMessageCount($this->getQueue($queue));
     }
 
+    public function pendingSize($queue = null): int
+    {
+        return $this->client->getMessageCount($this->getQueue($queue));
+    }
+
+    public function delayedSize($queue = null): int
+    {
+        return $this->client->getScheduledMessageCount($this->getQueue($queue));
+    }
+
+    public function reservedSize($queue = null): int
+    {
+        // Azure Service Bus does not expose a count of locked messages
+        return 0;
+    }
+
+    public function creationTimeOfOldestPendingJob($queue = null): ?int
+    {
+        // Not supported by Azure Service Bus
+        return null;
+    }
+
     public function push($job, $data = '', $queue = null): mixed
     {
         return $this->enqueueUsing(
