@@ -94,32 +94,32 @@ class AzureServiceBusClient
      */
     public function getMessageCount(string $queue): int
     {
-        $url      = "{$this->baseUrl}/{$queue}";
-        $response = $this->httpClient()->get($url);
+        $xml = $this->queueDescription($queue);
 
-        if (! $response->successful()) {
+        if ($xml === null) {
             return 0;
         }
 
-        $xml = @simplexml_load_string($response->body());
+        // ActiveMessageCount — messages ready for immediate delivery,
+        // falling back to the total MessageCount from the QueueDescription
+        return $this->countFromDescription($xml, 'ActiveMessageCount')
+            ?? $this->countFromDescription($xml, 'MessageCount')
+            ?? 0;
+    }
 
-        if ($xml === false) {
+    /**
+     * Get the number of scheduled (delayed) messages in a queue, read from
+     * the <ScheduledMessageCount> element of the queue's <CountDetails>.
+     */
+    public function getScheduledMessageCount(string $queue): int
+    {
+        $xml = $this->queueDescription($queue);
+
+        if ($xml === null) {
             return 0;
         }
 
-        $xml->registerXPathNamespace('d2p1', 'http://schemas.microsoft.com/netservices/2010/10/servicebus/connect');
-
-        // ActiveMessageCount — messages ready for immediate delivery
-        $nodes = $xml->xpath('//d2p1:ActiveMessageCount');
-
-        if (! empty($nodes)) {
-            return (int) $nodes[0];
-        }
-
-        // Fallback: total MessageCount from the root QueueDescription
-        $nodes = $xml->xpath('//d2p1:MessageCount');
-
-        return ! empty($nodes) ? (int) $nodes[0] : 0;
+        return $this->countFromDescription($xml, 'ScheduledMessageCount') ?? 0;
     }
 
     public function sendToQueue(string $queue, ServiceBusMessage $message): void
@@ -210,6 +210,29 @@ class AzureServiceBusClient
         if (! $response->successful()) {
             throw AzureServiceBusException::deleteFailed("{$topic}/subscriptions/{$sub}", $msgId, $lockToken);
         }
+    }
+
+    private function queueDescription(string $queue): ?\SimpleXMLElement
+    {
+        $url      = "{$this->baseUrl}/{$queue}";
+        $response = $this->httpClient()->get($url);
+
+        if (! $response->successful()) {
+            return null;
+        }
+
+        $xml = @simplexml_load_string($response->body());
+
+        return $xml === false ? null : $xml;
+    }
+
+    private function countFromDescription(\SimpleXMLElement $xml, string $element): ?int
+    {
+        // Matched by local name: the count details live in a different XML
+        // namespace than the QueueDescription itself.
+        $nodes = $xml->xpath("//*[local-name()='{$element}']");
+
+        return ! empty($nodes) ? (int) $nodes[0] : null;
     }
 
     private function sendMessage(string $url, string $destination, ServiceBusMessage $message): void
